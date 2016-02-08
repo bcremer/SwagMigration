@@ -1,28 +1,15 @@
 <?php
 /**
- * Shopware 5
- * Copyright (c) shopware AG
+ * (c) shopware AG <info@shopware.com>
  *
- * According to our dual licensing model, this program can be used either
- * under the terms of the GNU Affero General Public License, version 3,
- * or under a proprietary license.
- *
- * The texts of the GNU Affero General Public License with an additional
- * permission and of our proprietary license can be found at and
- * in the LICENSE file you have received along with this program.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * "Shopware" is a registered trademark of shopware AG.
- * The licensing of the program under the AGPLv3 does not imply a
- * trademark license. Therefore any rights, title and interest in
- * our trademarks remain entirely with us.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Enlight_Components_Db_Adapter_Pdo_Mysql as PDOConnection;
+use Shopware\SwagMigration\Commands\MigrateCommand;
+use Shopware\SwagMigration\Components\Migration\PasswordEncoder\Md5Reversed;
 use Shopware\SwagMigration\Subscriber\Resources;
 
 /**
@@ -190,6 +177,21 @@ class Shopware_Plugins_Backend_SwagMigration_Bootstrap extends Shopware_Componen
         $this->subscribeEvent('Shopware_Components_Password_Manager_AddEncoder', 'onAddPasswordEncoder');
 
         $this->subscribeEvent('Enlight_Controller_Action_PostDispatch', 'onPostDispatch', 110);
+
+        $this->subscribeEvent(
+            'Shopware_Console_Add_Command',
+            'onAddConsoleCommand'
+        );
+    }
+
+    public function onAddConsoleCommand(Enlight_Event_EventArgs $args)
+    {
+        $container = Shopware()->Container();
+        $this->get('events')->addSubscriber(new Resources($container));
+
+        return new ArrayCollection(array(
+            new MigrateCommand()
+        ));
     }
 
     /**
@@ -211,7 +213,14 @@ class Shopware_Plugins_Backend_SwagMigration_Bootstrap extends Shopware_Componen
      */
     public function afterInit()
     {
-        $this->get('loader')->registerNamespace('Shopware\SwagMigration', $this->Path());
+        /** @var Enlight_Loader $loader */
+        $loader = $this->get('loader');
+
+        $loader->registerNamespace(
+            'Shopware\SwagMigration',
+            $this->Path()
+        );
+
         $this->db = $this->get('db');
     }
 
@@ -261,11 +270,9 @@ class Shopware_Plugins_Backend_SwagMigration_Bootstrap extends Shopware_Componen
      */
     public function onAddPasswordEncoder(\Enlight_Event_EventArgs $args)
     {
-        $this->get('loader')->registerNamespace('Shopware_Components', dirname(__FILE__) . '/Components/');
-
         $hashes = $args->getReturn();
 
-        $hashes[] = new Shopware_Components_Migration_PasswordEncoder_Md5Reversed();
+        $hashes[] = new Md5Reversed();
 
         return $hashes;
     }
